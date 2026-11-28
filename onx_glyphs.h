@@ -67,10 +67,13 @@ inline std::deque<uint64_t> &requests() { static std::deque<uint64_t> d; return 
 inline std::vector<Result> &results() { static std::vector<Result> v; return v; }
 
 // Which characters are worth asking for: not controls, private use (color
-// emoji use it) or emoji (onx_emoji draws those).
+// emoji are drawn as private-use glyphs) or emoji joiners. Symbols and emoji
+// are asked for too: onx_emoji replaces the sequences it recognizes before
+// LVGL looks them up, so this only draws what it leaves (dingbats such as
+// ⚙ ✔ ➜, and emoji in labels without color emoji) instead of a box.
 inline bool wanted(uint32_t cp) {
   if (cp < 0xA0 || (cp >= 0xD800 && cp < 0xF900) || cp >= 0xF0000) return false;
-  if ((cp >= 0x1F000 && cp < 0x1FB00) || (cp >= 0x2600 && cp < 0x27C0) || cp == 0xFE0F || cp == 0x200D) return false;
+  if (cp == 0xFE0F || cp == 0xFE0E || cp == 0x200D) return false;
   return true;
 }
 
