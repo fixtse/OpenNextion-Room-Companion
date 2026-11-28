@@ -9,6 +9,10 @@
  "screens": [
   {"name": "toast-grouped", "entity": "sensor.living_room_temperature",
    "toast": {"title": "Family chat", "body": "Ana: Are we still on for dinner?\nLuis: Yes, 8 pm\nAna: Great, I'll book the table\nLuis: Bring the charger please\nAna: NEWEST: on my way now"}},
+  {"name": "toast-long-chat", "entity": "sensor.living_room_temperature",
+   "toast": {"title": "Family chat", "body": "Ana: Morning everyone!\nLuis: Did anyone see my keys?\nMarta: On the kitchen counter\nAna: Are we still on for dinner tonight?\nLuis: Yes, 8 pm works for me\nMarta: Count me in too\nAna: Great, I booked the table for four\nLuis: Don't forget to bring the charger\nAna: NEWEST: just parked outside, coming in now"}},
+  {"name": "toast-long", "entity": "sensor.living_room_temperature",
+   "toast": {"title": "Package delivery", "body": "Your parcel from Express Courier is out for delivery and scheduled to arrive between 14:30 and 16:00 today. The driver will ring the front intercom; if nobody answers, it will be left at the parcel locker around the corner on Main Street and a pickup code will be sent to your phone."}},
   {"name": "toast-short", "entity": "sensor.living_room_temperature",
    "toast": {"title": "Door", "body": "Front door opened"}}
  ]

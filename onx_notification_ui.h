@@ -43,9 +43,9 @@ inline Fonts fonts;
 inline Hooks hooks;
 inline int width = 240, height = 240;
 inline lv_obj_t *bell = nullptr, *badge = nullptr, *badge_label = nullptr;
-inline lv_obj_t *toast = nullptr, *toast_title = nullptr, *toast_body = nullptr;
-// The banner's body clip: two lines, scrolled to the end so a conversation
-// that gathers messages shows its latest ones.
+inline lv_obj_t *toast = nullptr, *toast_title = nullptr, *toast_body = nullptr, *toast_more = nullptr;
+// The banner's body clip: grows up to several full-width lines; when a
+// multi-line conversation overflows, it scrolls to the latest lines.
 inline lv_obj_t *toast_clip = nullptr;
 inline bool scroll_toast = false;
 inline lv_obj_t *panel = nullptr, *list = nullptr, *empty_label = nullptr, *header_label = nullptr,
@@ -699,46 +699,58 @@ inline void init(int screen_width, int screen_height, Fonts f, Hooks h) {
   lv_obj_center(badge_label);
   lv_obj_remove_flag(badge, LV_OBJ_FLAG_CLICKABLE);
 
-  // Arrival banner.
+  // Arrival banner: compact icon + title header on top, full-width body below
+  // so message content has room to breathe and read clearly at a glance.
   toast = box(top, CARD, S(12));
   lv_obj_set_size(toast, width - 2 * S(8), LV_SIZE_CONTENT);
   lv_obj_align(toast, LV_ALIGN_TOP_LEFT, S(8), S(6));
-  lv_obj_set_style_pad_all(toast, S(8), 0);
-  lv_obj_set_style_border_side(toast, LV_BORDER_SIDE_LEFT, 0);
-  lv_obj_set_style_border_width(toast, S(4), 0);
-  lv_obj_set_style_border_color(toast, lv_color_hex(accent()), 0);
-  lv_obj_set_flex_flow(toast, LV_FLEX_FLOW_ROW);
-  lv_obj_set_style_pad_column(toast, S(8), 0);
-  lv_obj_set_style_border_width(toast, 0, 0);
+  lv_obj_set_style_pad_left(toast, S(12), 0);
+  lv_obj_set_style_pad_right(toast, S(10), 0);
+  lv_obj_set_style_pad_ver(toast, S(8), 0);
+  lv_obj_set_style_border_width(toast, 1, 0);
+  lv_obj_set_style_border_color(toast, lv_color_hex(control()), 0);
+  lv_obj_set_flex_flow(toast, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(toast, S(5), 0);
   lv_obj_set_style_clip_corner(toast, true, 0);
-  toast_bar = box(toast, accent(), S(2));
-  lv_obj_add_flag(toast_bar, LV_OBJ_FLAG_FLOATING);
-  lv_obj_set_pos(toast_bar, -S(4), 0);
-  lv_obj_set_size(toast_bar, S(3), lv_pct(100));
-  lv_obj_remove_flag(toast_bar, LV_OBJ_FLAG_CLICKABLE);
-  toast_icon = notification_icon(toast, 0, 64);
-  auto *toast_column = box(toast, CARD, 0);
-  lv_obj_set_style_bg_opa(toast_column, LV_OPA_TRANSP, 0);
-  lv_obj_set_flex_grow(toast_column, 1);
-  lv_obj_remove_flag(toast_column, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_height(toast_column, LV_SIZE_CONTENT);
-  lv_obj_set_flex_flow(toast_column, LV_FLEX_FLOW_COLUMN);
   lv_obj_add_flag(toast, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_remove_flag(toast, LV_OBJ_FLAG_GESTURE_BUBBLE);
-  toast_title = text(toast_column, fonts.title, TEXT, "");
-  lv_obj_set_width(toast_title, lv_pct(100));
+  toast_bar = box(toast, accent(), S(2));
+  lv_obj_add_flag(toast_bar, LV_OBJ_FLAG_FLOATING);
+  lv_obj_set_pos(toast_bar, -S(8), 0);
+  lv_obj_set_size(toast_bar, S(3), lv_pct(100));
+  lv_obj_remove_flag(toast_bar, LV_OBJ_FLAG_CLICKABLE);
+  auto *toast_header = box(toast, CARD, 0);
+  lv_obj_set_style_bg_opa(toast_header, LV_OPA_TRANSP, 0);
+  lv_obj_set_size(toast_header, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(toast_header, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(toast_header, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(toast_header, S(6), 0);
+  lv_obj_remove_flag(toast_header, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(toast_header, LV_OBJ_FLAG_EVENT_BUBBLE);
+  toast_icon = notification_icon(toast_header, 0, 22);
+  toast_title = text(toast_header, fonts.title, MUTED, "");
+  lv_obj_set_flex_grow(toast_title, 1);
   lv_label_set_long_mode(toast_title, LV_LABEL_LONG_DOT);
-  lv_obj_set_style_max_height(toast_title, 2 * lv_font_get_line_height(fonts.title), 0);
-  toast_clip = box(toast_column, CARD, 0);
+  lv_obj_set_height(toast_title, lv_font_get_line_height(fonts.title));
+  lv_obj_remove_flag(toast_title, LV_OBJ_FLAG_CLICKABLE);
+  toast_clip = box(toast, CARD, 0);
   lv_obj_set_style_bg_opa(toast_clip, LV_OPA_TRANSP, 0);
   lv_obj_set_size(toast_clip, lv_pct(100), LV_SIZE_CONTENT);
-  lv_obj_set_style_max_height(toast_clip, 2 * lv_font_get_line_height(fonts.body), 0);
+  const int body_line_h = std::max(1, static_cast<int>(lv_font_get_line_height(fonts.body)));
+  const int max_toast_lines = std::max(3, std::min(7, (height * 48 / 100) / body_line_h));
+  lv_obj_set_style_max_height(toast_clip, max_toast_lines * body_line_h, 0);
   lv_obj_set_scrollbar_mode(toast_clip, LV_SCROLLBAR_MODE_OFF);
   // Scrolled only here (taps and swipes belong to the banner).
   lv_obj_remove_flag(toast_clip, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
-  toast_body = text(toast_clip, fonts.body, MUTED, "");
+  toast_body = text(toast_clip, fonts.body, TEXT, "");
   lv_obj_set_width(toast_body, lv_pct(100));
   lv_label_set_long_mode(toast_body, LV_LABEL_LONG_WRAP);
+  lv_obj_remove_flag(toast_body, LV_OBJ_FLAG_CLICKABLE);
+  toast_more = text(toast, fonts.small, accent(), "Tap to read more");
+  lv_obj_set_width(toast_more, lv_pct(100));
+  lv_obj_set_style_text_align(toast_more, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_remove_flag(toast_more, LV_OBJ_FLAG_CLICKABLE);
+  hide(toast_more, true);
   lv_obj_add_event_cb(toast, on_toast, LV_EVENT_CLICKED, nullptr);
   lv_obj_add_event_cb(toast, [](lv_event_t *) {
     auto *indev=lv_indev_active();
@@ -1022,8 +1034,9 @@ inline void refresh() {
   lv_label_set_text(badge_label, count);
   lv_obj_align_to(badge, bell, LV_ALIGN_TOP_RIGHT, 0, 0);
   // Accent colour follows the device setting.
-  lv_obj_set_style_border_color(toast, lv_color_hex(accent()), 0);
+  lv_obj_set_style_border_color(toast, lv_color_hex(control()), 0);
   lv_obj_set_style_text_color(detail_age, lv_color_hex(accent()), 0);
+  if (toast_more != nullptr) lv_obj_set_style_text_color(toast_more, lv_color_hex(accent()), 0);
   char count_text[16] = "";
   if (!center.items.empty()) snprintf(count_text, sizeof(count_text), "\xC2\xB7 %u", static_cast<unsigned>(center.items.size()));
   const char *heading = presets_open ? "Presets" : "Notifications";
@@ -1038,57 +1051,65 @@ inline void refresh() {
   update_presets();
 
   const bool show_toast = center.toast_visible(now) && !panel_open && detail_id == 0;
-  if (show_toast) {
-    if (auto *item = center.find(center.toast_id)) {
-      onx_emoji::set_label(toast_title, item->title.c_str());
-      if (image_widgets[toast_icon] != item->id) {
-        image_widgets[toast_icon] = item->id;
-        auto found = thumbnails.find(item->id);
-        lv_image_set_src(toast_icon, found == thumbnails.end() || !found->second.pixels ? bell_image : &found->second.image);
-      }
-      // Timeout bar: one LVGL animation shrinks it smoothly every frame (a
-      // 3 px strip, so each step redraws almost nothing). Restarted only when
-      // the banner or its deadline changes.
-      static uint32_t animated_id = 0, animated_until = 0;
-      if (animated_id != item->id || animated_until != center.toast_until) {
-        animated_id = item->id;
-        animated_until = center.toast_until;
+  onx_notification::CenterItem *toast_item = show_toast ? center.find(center.toast_id) : nullptr;
+  if (toast_item != nullptr) {
+    onx_emoji::set_label(toast_title, toast_item->title.c_str());
+    if (image_widgets[toast_icon] != toast_item->id) {
+      image_widgets[toast_icon] = toast_item->id;
+      auto found = thumbnails.find(toast_item->id);
+      lv_image_set_src(toast_icon, found == thumbnails.end() || !found->second.pixels ? bell_image : &found->second.image);
+    }
+    static uint32_t scrolled_id = 0;
+    static std::string scrolled_body;
+    if (scrolled_id != toast_item->id || scrolled_body != toast_item->body) {
+      scrolled_id = toast_item->id;
+      scrolled_body = toast_item->body;
+      lv_obj_scroll_to_y(toast_clip, 0, LV_ANIM_OFF);  // A shorter text starts at the top.
+      onx_emoji::set_label(toast_body, toast_item->body.c_str());
+      hide(toast_more, true);
+      scroll_toast = true;
+    }
+    lv_obj_set_style_bg_color(toast_bar, lv_color_hex(accent()), 0);
+  }
+  hide(toast, toast_item == nullptr);
+  // Once the banner is shown and laid out, check whether the body overflows:
+  // show the "Tap to read ..." hint, and for multi-line conversations scroll
+  // to the latest lines. Start/update the timeout bar after final sizing.
+  if (toast_item != nullptr) {
+    if (scroll_toast) {
+      scroll_toast = false;
+      lv_obj_update_layout(toast);
+      const int32_t below = lv_obj_get_scroll_bottom(toast_clip);
+      if (below > 0) {
+        const bool multiline = toast_item->body.find('\n') != std::string::npos;
+        if (multiline) lv_obj_scroll_to_y(toast_clip, lv_obj_get_scroll_y(toast_clip) + below, LV_ANIM_OFF);
+        lv_label_set_text_static(toast_more, multiline ? "Tap to read all" : "Tap to read more");
+        hide(toast_more, false);
         lv_obj_update_layout(toast);
-        const int full = std::max<int>(1, lv_obj_get_content_height(toast) + lv_obj_get_style_pad_top(toast, LV_PART_MAIN) +
-                                              lv_obj_get_style_pad_bottom(toast, LV_PART_MAIN));
-        const uint32_t total = std::max<uint32_t>(1, center.toast_until - item->received_ms);
-        const uint32_t left = center.toast_until > now ? center.toast_until - now : 0;
-        lv_anim_delete(toast_bar, nullptr);
-        lv_obj_set_height(toast_bar, int(uint64_t(full) * left / total));
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, toast_bar);
-        lv_anim_set_values(&a, int(uint64_t(full) * left / total), 0);
-        lv_anim_set_duration(&a, std::max<uint32_t>(1, left));
-        lv_anim_set_path_cb(&a, lv_anim_path_linear);
-        lv_anim_set_exec_cb(&a, [](void *bar, int32_t h) { lv_obj_set_height(static_cast<lv_obj_t *>(bar), std::max<int32_t>(1, h)); });
-        lv_anim_start(&a);
-      }
-      lv_obj_set_style_bg_color(toast_bar, lv_color_hex(accent()), 0);
-      static uint32_t scrolled_id = 0;
-      static std::string scrolled_body;
-      if (scrolled_id != item->id || scrolled_body != item->body) {
-        scrolled_id = item->id;
-        scrolled_body = item->body;
-        lv_obj_scroll_to_y(toast_clip, 0, LV_ANIM_OFF);  // A shorter text starts at the top.
-        onx_emoji::set_label(toast_body, item->body.c_str());
-        scroll_toast = true;
       }
     }
-  }
-  hide(toast, !show_toast);
-  // The end of the text (the latest messages of a gathered conversation),
-  // once the banner is shown and laid out.
-  if (show_toast && scroll_toast) {
-    scroll_toast = false;
-    lv_obj_update_layout(toast);
-    const int32_t below = lv_obj_get_scroll_bottom(toast_clip);
-    if (below > 0) lv_obj_scroll_to_y(toast_clip, lv_obj_get_scroll_y(toast_clip) + below, LV_ANIM_OFF);
+    // Timeout bar: one LVGL animation shrinks it smoothly every frame (a
+    // 3 px strip, so each step redraws almost nothing). Restarted only when
+    // the banner or its deadline changes.
+    static uint32_t animated_id = 0, animated_until = 0;
+    if (animated_id != toast_item->id || animated_until != center.toast_until) {
+      animated_id = toast_item->id;
+      animated_until = center.toast_until;
+      lv_obj_update_layout(toast);
+      const int full = std::max<int>(1, lv_obj_get_content_height(toast));
+      const uint32_t total = std::max<uint32_t>(1, center.toast_until - toast_item->received_ms);
+      const uint32_t left = center.toast_until > now ? center.toast_until - now : 0;
+      lv_anim_delete(toast_bar, nullptr);
+      lv_obj_set_height(toast_bar, int(uint64_t(full) * left / total));
+      lv_anim_t a;
+      lv_anim_init(&a);
+      lv_anim_set_var(&a, toast_bar);
+      lv_anim_set_values(&a, int(uint64_t(full) * left / total), 0);
+      lv_anim_set_duration(&a, std::max<uint32_t>(1, left));
+      lv_anim_set_path_cb(&a, lv_anim_path_linear);
+      lv_anim_set_exec_cb(&a, [](void *bar, int32_t h) { lv_obj_set_height(static_cast<lv_obj_t *>(bar), std::max<int32_t>(1, h)); });
+      lv_anim_start(&a);
+    }
   }
 
   if (sheet_mode != SheetMode::CLOSING) hide(panel, !panel_open);
