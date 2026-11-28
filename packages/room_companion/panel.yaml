@@ -583,11 +583,10 @@ interval:
               id(panel_entity_select)->traits.set_options(options);
               options_changed = true;
             }
-            // Home Assistant reads a select's options when it connects. Do not
-            // force a reconnect for them: almost every save changes these titles,
-            // and dropping HA on each save broke the panel. HA picks up the new
-            // options at its next connection; Assist uses the show_entity action.
-            (void) options_changed;
+            // Home Assistant reads a select's options when it connects.
+            static bool first = true;
+            if (options_changed && !first) custom_logic::disconnect_all_clients_for_refresh(id(api_server));
+            if (options_changed) first = false;
             const int config = onx_panel_pages::configured(
                 id(ui_presenter)->get_normal_device_entity_id(id(normal_device_selected_index)));
             const int page = onx_panel_pages::page_of_entry(config);
