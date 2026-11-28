@@ -10,7 +10,11 @@ entity:
 | **Show entity** | every entity configured on the panel, by name | opens its detail screen |
 | **Preset** | the saved presets | switches to that preset |
 
-The options follow the panel's configuration. Each choice wakes the panel from
+The options follow the panel's configuration. Home Assistant reads new **Page**
+and **Show entity** options the next time it connects to the panel (saving a
+slot does not drop the connection), so until then a new or renamed page or
+entity may be missing from the select; the `show_entity` action accepts any
+name at once. Each choice wakes the panel from
 standby or low-power sleep, and when Assist made it the Assist overlay closes as
 soon as the change is done; the spoken reply still plays.
 
