@@ -31,25 +31,92 @@ Assign the panel to an area so Home Assistant knows where a request came from.
 > **Page** select for a page, its **Preset** select for a preset.
 
 **Built-in agent.** A conversation-triggered automation acts on the panel that
-heard the request (`trigger.device_id`):
+heard the request (`trigger.device_id`). This one understands English and
+Spanish:
+
+- "show calentador", "muestra scroll y zoom": opens an entity (Show entity).
+- "show the madrid page", "muestra la página madrid": shows a page.
+- "switch to the evening preset", "cambia al modo noche": switches presets.
+
+Spoken names match the select's options ignoring case, punctuation, leading
+articles, `&`/"and"/"y" and `+`/"plus", so "show the scroll and zoom" finds
+`Scroll & Zoom` and "show timer 2" finds `Timer (2)`. Without a device (typed
+Assist, the companion app) it uses the panel only if there is exactly one. When
+nothing matches it says so instead of "Done".
 
 ```yaml
+alias: "Room Companion: show / page / preset by voice"
+mode: queued
 triggers:
   - trigger: conversation
-    command: ["show {item}", "open {item}"]
+    command:
+      - "show {item}"
+      - "switch to {item}"
+      - "muestra {item}"
+      - "cambia (a|al) {item}"
+variables:
+  es: "{{ trigger.sentence | lower is match('\\s*(muestra|cambia)') }}"
+  said: "{{ trigger.slots.item | default('') }}"
+  kind: >-
+    {% set t = said | lower %}
+    {% if t is search('\\b(preset|modo)\\b') %}preset
+    {%- elif t is search('\\b(page|p[aá]gina)\\b') %}page
+    {%- else %}entity{% endif %}
+  panel: >-
+    {% set src = device_entities(trigger.device_id) if trigger.device_id
+                 else integration_entities('esphome') %}
+    {% set found = src | select('match', 'select\\..*_show_entity$') | list %}
+    {{ found[0] if found | length == 1 else '' }}
+  target: >-
+    {% if panel %}{{ panel[:-12] ~ {'entity': '_show_entity', 'page': '_page',
+                                    'preset': '_preset'}[kind] }}{% endif %}
+  name: >-
+    {{ said | regex_replace('(?i)\\b(preset|modo|page|p[aá]gina)\\b', '')
+            | regex_replace('\\s+', ' ') | trim }}
+  option: >-
+    {% macro norm(s) -%}
+      {{ s | lower | replace('&', ' and ') | replace('+', ' plus ')
+           | regex_replace('\\by\\b', 'and') | regex_replace('[^\\w ]', ' ')
+           | regex_replace('^\\s*(the|an|el|la|los|las|al|del)\\s+', '')
+           | regex_replace('\\s+', ' ') | trim }}
+    {%- endmacro %}
+    {% set ns = namespace(hit='') %}
+    {% for o in (state_attr(target, 'options') or []) if target %}
+      {% if not ns.hit and norm(o) == norm(name) %}{% set ns.hit = o %}{% endif %}
+    {% endfor %}
+    {{ ns.hit }}
 actions:
-  - action: select.select_option
-    target:
-      entity_id: >-
-        {{ device_entities(trigger.device_id) | select('match', 'select\..*_show_entity$') | first }}
-    data:
-      option: "{{ item }}"
-  - set_conversation_response: "Showing {{ item }}."
+  - choose:
+      - conditions: "{{ not panel }}"
+        sequence:
+          - set_conversation_response: >-
+              {{ 'No sé qué panel usar.' if es else 'I could not tell which panel to use.' }}
+      - conditions: "{{ not option }}"
+        sequence:
+          - set_conversation_response: >-
+              {{ ('No encontré ' ~ name ~ ' en el panel.') if es
+                 else ('I could not find ' ~ name ~ ' on the panel.') }}
+    default:
+      - action: select.select_option
+        target: { entity_id: "{{ target }}" }
+        data: { option: "{{ option }}" }
+      - set_conversation_response: >-
+          {% if kind == 'preset' %}{{ ('Preset ' ~ option ~ (' aplicado.' if es else ' applied.')) }}
+          {%- else %}{{ ('Mostrando ' if es else 'Showing ') ~ option ~ '.' }}{% endif %}
 ```
 
-`{item}` is the spoken text, so it must match an option of the select exactly
-(including capitalisation); an LLM agent copes with approximate names better.
-Neither recipe has been tested on hardware yet.
+Notes:
+
+- Sentence triggers win over Home Assistant's built-in sentences, so the
+  recipe avoids common command verbs: "open the garage door" still reaches the
+  built-in commands. Add another verb only if no built-in sentence starts with
+  it.
+- Pages need the word "page"/"página" and presets "preset"/"modo"; a page and an
+  entity with the same name are told apart that way.
+- Speech-to-Phrase does not learn wildcard sentences, so this needs a full
+  speech-to-text engine (Home Assistant Cloud, Whisper, Azure and others).
+- Tested with typed text sent as if from the 3.5" panel, not by voice on the
+  panels.
 
 ## Actions for automations
 
