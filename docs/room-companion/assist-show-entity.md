@@ -19,6 +19,38 @@ the panel", "switch the panel to the evening preset"). The default agent has no
 built-in sentences for select options; add a custom sentence whose
 `intent_script` calls `select.select_option` on the select.
 
+## Without saying "on the panel"
+
+Assign the panel to an area so Home Assistant knows where a request came from.
+
+**LLM agent.** Add to the agent's instructions:
+
+> When the user asks to show, open or display something, or to switch to a
+> page or preset, and doesn't name a screen, use the Room Companion panel in
+> the area the request came from: its **Show entity** select for an entity, its
+> **Page** select for a page, its **Preset** select for a preset.
+
+**Built-in agent.** A conversation-triggered automation acts on the panel that
+heard the request (`trigger.device_id`):
+
+```yaml
+triggers:
+  - trigger: conversation
+    command: ["show {item}", "open {item}"]
+actions:
+  - action: select.select_option
+    target:
+      entity_id: >-
+        {{ device_entities(trigger.device_id) | select('match', 'select\..*_show_entity$') | first }}
+    data:
+      option: "{{ item }}"
+  - set_conversation_response: "Showing {{ item }}."
+```
+
+`{item}` is the spoken text, so it must match an option of the select exactly
+(including capitalisation); an LLM agent copes with approximate names better.
+Neither recipe has been tested on hardware yet.
+
 ## Actions for automations
 
 - `esphome.<device>_show_entity` (`entity_id`, `detail`): shows the page of a
