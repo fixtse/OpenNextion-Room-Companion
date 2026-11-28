@@ -33,6 +33,7 @@ api:
       then:
         - lambda: |-
             onx_presets::request(name);
+            onx_assist::dismiss();
     - action: save_preset
       description: Save the panel's current controls as a preset, replacing a preset with the same name.
       variables:

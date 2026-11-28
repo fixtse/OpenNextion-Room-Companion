@@ -199,13 +199,14 @@ the [fixtSE ImmichFrame fork](https://github.com/fixtse/ImmichFrame):
   **Preset** select and `apply_preset` / `save_preset` / `delete_preset`
   actions.
 - **Home Assistant automation hooks.** Control the panel from automations using
-  exposed entities for **Page** selection, **Screen Light** (brightness),
+  exposed entities for **Page** and **Show entity** selection, **Screen Light** (brightness),
   **Screen Off**, **Low Power Sleep**, **Idle screen**, **Streamed page**,
   **Preset**, **Talk**, **Microphone muted**, **Speaker**, and **Firmware
   Update**.
-- **Show an entity from Assist.** The `show_entity` action (`entity_id`,
-  `detail`) wakes the panel and shows a configured entity's page, or its detail
-  screen. See [Show an entity with Assist](docs/room-companion/assist-show-entity.md).
+- **Assist control.** Expose the **Page**, **Show entity** and **Preset**
+  selects and Assist can show a page, open any configured entity's detail
+  screen or switch presets; the Assist overlay closes once the change is done.
+  See [Assist: show pages and entities](docs/room-companion/assist-show-entity.md).
 
 ### Browser setup, backups & maintenance
 

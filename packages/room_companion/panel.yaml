@@ -51,13 +51,7 @@ api:
         - lambda: |-
             const int config = onx_panel_pages::configured(entity_id);
             if (config < 0) { ESP_LOGW("panel", "show_entity: %s is not on this panel", entity_id.c_str()); return; }
-            if (onx_power::sleeping && id(low_power_sleep).state) id(low_power_sleep).turn_off();
-            if (id(ui_presenter)->is_standby_active()) id(exit_standby_mode).execute();
-            id(ui_presenter)->notify_user_activity();
-            if (id(normal_device_detail_active)) id(exit_normal_switch_detail).execute();
-            id(normal_device_selected_index) = custom_logic::normal_ui_slot_for_device_config_slot(config);
-            if (detail) id(enter_normal_switch_detail).execute();
-            else id(show_normal_device_entry_page).execute(0);
+            id(panel_show_entity).execute(config, detail);
     # Sent by the Room Companion integration (github.com/fixtse/ha-room-companion):
     # icons, emoji, covers and the lyrics backdrop then come from Home Assistant.
     - action: set_companion
@@ -138,6 +132,27 @@ select:
           id(normal_device_selected_index) = custom_logic::normal_ui_slot_for_device_config_slot(entry);
           id(show_normal_device_entry_page).execute(0);
           id(panel_page_select).publish_state(size_t(it - titles.begin()));
+          onx_assist::dismiss();
+  # Every configured entity by name, for Assist and automations: choose one to
+  # open its detail screen. Only this select needs exposing to Assist.
+  - platform: template
+    id: panel_entity_select
+    name: Show entity
+    icon: mdi:gesture-tap-button
+    options:
+      - None
+    initial_option: None
+    optimistic: false
+    restore_value: false
+    set_action:
+      - lambda: |-
+          const auto entities = onx_panel_pages::entity_titles();
+          for (size_t i = 0; i < entities.size(); ++i) {
+            if (entities[i].first != x) continue;
+            id(panel_show_entity).execute(entities[i].second, true);
+            id(panel_entity_select).publish_state(i);
+            return;
+          }
   - platform: template
     id: panel_idle_screen
     name: Idle screen
@@ -547,17 +562,31 @@ interval:
             auto titles = onx_panel_pages::page_titles();
             if (titles.empty()) titles.push_back("None");
             auto *select = id(panel_page_select);
+            bool options_changed = false;
             if (titles != page_options) {
               page_options = std::move(titles);
               esphome::FixedVector<const char *> options;
               options.init(page_options.size());
               for (const auto &t : page_options) options.push_back(t.c_str());
               select->traits.set_options(options);
-              // Home Assistant reads a select's options when it connects.
-              static bool first = true;
-              if (!first) custom_logic::disconnect_all_clients_for_refresh(id(api_server));
-              first = false;
+              options_changed = true;
             }
+            static std::vector<std::string> entity_options;
+            std::vector<std::string> names;
+            for (auto &t : onx_panel_pages::entity_titles()) names.push_back(std::move(t.first));
+            if (names.empty()) names.push_back("None");
+            if (names != entity_options) {
+              entity_options = std::move(names);
+              esphome::FixedVector<const char *> options;
+              options.init(entity_options.size());
+              for (const auto &t : entity_options) options.push_back(t.c_str());
+              id(panel_entity_select)->traits.set_options(options);
+              options_changed = true;
+            }
+            // Home Assistant reads a select's options when it connects.
+            static bool first = true;
+            if (options_changed && !first) custom_logic::disconnect_all_clients_for_refresh(id(api_server));
+            if (options_changed) first = false;
             const int config = onx_panel_pages::configured(
                 id(ui_presenter)->get_normal_device_entity_id(id(normal_device_selected_index)));
             const int page = onx_panel_pages::page_of_entry(config);
@@ -971,6 +1000,22 @@ image:
     transparency: alpha_channel
 
 script:
+  # Wake the panel and show a configured entity (configuration slot): its page,
+  # or its detail screen. Closes the Assist overlay when Assist asked for it.
+  - id: panel_show_entity
+    parameters:
+      config: int
+      detail: bool
+    then:
+      - lambda: |-
+          if (onx_power::sleeping && id(low_power_sleep).state) id(low_power_sleep).turn_off();
+          if (id(ui_presenter)->is_standby_active()) id(exit_standby_mode).execute();
+          id(ui_presenter)->notify_user_activity();
+          if (id(normal_device_detail_active)) id(exit_normal_switch_detail).execute();
+          id(normal_device_selected_index) = custom_logic::normal_ui_slot_for_device_config_slot(config);
+          if (detail) id(enter_normal_switch_detail).execute();
+          else id(show_normal_device_entry_page).execute(0);
+          onx_assist::dismiss();
   # A player's screen opened mid-song without lyrics: the Room Companion
   # integration answers with set_lyrics (onx_lyrics::request).
   - id: request_lyrics

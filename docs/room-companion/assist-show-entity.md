@@ -1,66 +1,30 @@
-# Show an entity with Assist
+# Assist: show pages and entities, switch presets
 
-Two ways to point the panel at something:
+Expose three of the panel's selects to Assist (**Settings → Voice assistants →
+Expose**) and a conversation agent can drive the panel without exposing each
+entity:
 
-- **Page select** (`select.<device>_page`): its options are the page names.
-  Expose it to Assist and an LLM conversation agent can choose a page; with the
-  default (non-LLM) agent use a custom sentence that calls `select.select_option`.
-- **`show_entity` action** (`esphome.<device>_show_entity`): shows the page of
-  any entity configured on the panel, or with `detail: true` opens that entity's
-  detail screen. It wakes the panel from standby or low-power sleep first. An
-  entity that is not on the panel is ignored (logged as a warning).
+| Select | Options | Choosing one |
+| --- | --- | --- |
+| **Page** | the carousel pages by name | shows that page |
+| **Show entity** | every entity configured on the panel, by name | opens its detail screen |
+| **Preset** | the saved presets | switches to that preset |
 
-## Script for Assist (LLM agents)
+The options follow the panel's configuration. Each choice wakes the panel from
+standby or low-power sleep, and when Assist made it the Assist overlay closes as
+soon as the change is done; the spoken reply still plays.
 
-Create this script and expose it to Assist. The agent fills `entity` from what
-you ask for ("show the living room lights on the panel").
+An LLM conversation agent sets these selects directly ("show the desk lamp on
+the panel", "switch the panel to the evening preset"). The default agent has no
+built-in sentences for select options; add a custom sentence whose
+`intent_script` calls `select.select_option` on the select.
 
-```yaml
-alias: Show on bedroom panel
-description: Show an entity on the bedroom panel. Opens its controls when detail is true.
-fields:
-  entity:
-    description: Entity to show (must be on the panel)
-    required: true
-    selector: { entity: {} }
-  detail:
-    description: Open the entity's detail screen instead of its page
-    default: true
-    selector: { boolean: {} }
-sequence:
-  - action: esphome.bedroom_onx3248g035_dbc6e4_show_entity
-    data:
-      entity_id: "{{ entity }}"
-      detail: "{{ detail | default(true) }}"
-```
+## Actions for automations
 
-## Custom sentence (default agent)
+- `esphome.<device>_show_entity` (`entity_id`, `detail`): shows the page of a
+  configured entity, or its detail screen with `detail: true`. An entity that is
+  not on the panel is ignored (logged as a warning).
+- `esphome.<device>_apply_preset` (`name`): switches to a saved preset.
 
-`config/custom_sentences/en/panel.yaml`:
-
-```yaml
-language: en
-intents:
-  ShowOnPanel:
-    data:
-      - sentences: ["show {name} on [the] panel", "open {name} on [the] panel"]
-```
-
-`configuration.yaml`:
-
-```yaml
-intent_script:
-  ShowOnPanel:
-    action:
-      - action: esphome.bedroom_onx3248g035_dbc6e4_show_entity
-        data:
-          entity_id: >-
-            {{ states | selectattr('name', 'eq', name) | map(attribute='entity_id') | first | default('') }}
-          detail: true
-    speech: { text: "Showing it on the panel." }
-```
-
-`{name}` matches exposed entities by their name; the template turns that name
-back into an entity ID. Replace `bedroom_onx3248g035_dbc6e4` with your device's
-name: Home Assistant lists the action under **Developer tools → Actions** once
-the panel connects.
+Home Assistant lists them under **Developer tools → Actions** once the panel
+connects.

@@ -166,7 +166,6 @@ select:
   - platform: template
     id: preset_select
     name: Preset
-    entity_category: config
     icon: mdi:view-carousel-outline
     options:
       - Custom
@@ -176,6 +175,7 @@ select:
     set_action:
       - lambda: |-
           onx_presets::request(x);
+          onx_assist::dismiss();
   - id: device1_config
     name: 10. Device1
     platform: template

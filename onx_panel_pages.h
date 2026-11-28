@@ -777,6 +777,21 @@ inline std::vector<std::string> page_titles() {
   }
   return out;
 }
+// "Show entity" select options: every configured entity by name, in slot
+// order, each paired with its configuration slot. Names are made unique.
+inline std::vector<std::pair<std::string,int>> entity_titles() {
+  std::vector<std::pair<std::string,int>> out;
+  const size_t limit=custom_logic::active_slot_limit();
+  for(size_t i=0;i<limit;++i) {
+    const auto e=custom_logic::cached_device_entity_id(i);if(e.empty())continue;
+    std::string title=custom_logic::ha_entity_title_from_registry_cache(e);if(title.empty())title=e;
+    if(title.size()>60)title.resize(60);
+    std::string unique=title;
+    for(int n=2;std::find_if(out.begin(),out.end(),[&](const auto &o){return o.first==unique;})!=out.end();++n)unique=title+" ("+std::to_string(n)+")";
+    out.emplace_back(unique,int(i));
+  }
+  return out;
+}
 inline int page_of_entry(int entry) {
   if(entry<0)return -1;
   for(int p=0;p<stored.count && p<int(MAX_PAGES);++p)for(auto e:stored.pages[p].entries)if(e==entry)return p;

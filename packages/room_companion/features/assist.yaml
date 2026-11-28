@@ -304,6 +304,13 @@ esphome:
             onx_assist::running = []() { return id(assist).is_running(); };
             onx_assist::toggle = []() { id(toggle_assist).execute(); };
             onx_assist::stop = []() { id(assist_stop).execute(); };
+            onx_assist::dismiss = []() {
+              if (lv_obj_has_flag(id(assist_overlay), LV_OBJ_FLAG_HIDDEN)) return;
+              id(assist_finished).stop();
+              id(assist_pulse).execute(false);
+              lv_obj_add_flag(id(assist_overlay), LV_OBJ_FLAG_HIDDEN);
+              id(room_panel)->set_overlay(esphome::room_companion::OVERLAY_ASSIST, false);
+            };
             onx_assist::resize = [](int w, int h) { lv_obj_set_size(id(assist_overlay), w, h); };
             onx_assist::stop_alarm_sound = []() {
               id(timer_alarm_sound).stop();
