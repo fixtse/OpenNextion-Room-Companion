@@ -376,24 +376,57 @@ script:
             entity_id: !lambda 'return entity;'
             is_volume_muted: !lambda 'return muted ? std::string("true") : std::string("false");'
 
-  # Mutes registered playing media players while Assist is active (web setting).
+  - id: assist_media_command
+    mode: queued
+    max_runs: 16
+    parameters:
+      entity: string
+      command: string
+    then:
+      - homeassistant.action:
+          action: !lambda 'return "media_player." + command;'
+          data:
+            entity_id: !lambda 'return entity;'
+
+  - id: assist_set_media_volume
+    mode: queued
+    max_runs: 16
+    parameters:
+      entity: string
+      level: string
+    then:
+      - homeassistant.action:
+          action: media_player.volume_set
+          data:
+            entity_id: !lambda 'return entity;'
+            volume_level: !lambda 'return level;'
+
+  # Quiets registered playing media players while Assist is active (web
+  # setting): pauses those that support it (feature 1), otherwise mutes them.
   - id: assist_mute_media
     then:
       - lambda: |-
           if (!onx_display_settings::assist_mute_media.enabled || !id(normal_ha_api_connected)) return;
-          auto &muted = onx_media::assist_muted;
+          auto &quieted = onx_media::assist_muted;
           for (int i = 0; i < id(normal_device_count) && i < (int)custom_logic::CONFIGURABLE_DEVICE_SLOT_COUNT; ++i) {
             const auto entity = id(ui_presenter)->get_normal_device_entity_id(i);
             if (entity.rfind("media_player.", 0) != 0) continue;
             const auto *d = custom_logic_entity_sub::entity_detail(entity);
             if (!d || !d->received || !d->available || d->state != "playing") continue;
+            if (std::any_of(quieted.begin(), quieted.end(), [&](const auto &q) { return q.entity == entity; })) continue;
+            const bool can_pause = d->features != 0 && (d->features & 1U);
+            if (can_pause) {
+              quieted.push_back({entity, true, ""});
+              id(assist_media_command).execute(entity, std::string("media_pause"));
+              continue;
+            }
             if (d->muted == "True" || d->muted == "true") continue;
             if (d->features != 0 && !(d->features & 8U)) continue;
-            if (std::find(muted.begin(), muted.end(), entity) != muted.end()) continue;
-            muted.push_back(entity);
+            quieted.push_back({entity, false, d->volume});
             id(assist_set_media_mute).execute(entity, true);
           }
 
+  # Resumes paused players; unmutes muted ones and puts their volume back.
   - id: assist_unmute_media
     then:
       - lambda: |-
@@ -401,7 +434,14 @@ script:
           auto players = std::move(onx_media::assist_muted);
           onx_media::assist_muted.clear();
           if (!id(normal_ha_api_connected)) return;
-          for (const auto &entity : players) id(assist_set_media_mute).execute(entity, false);
+          for (const auto &q : players) {
+            if (q.paused) { id(assist_media_command).execute(q.entity, std::string("media_play")); continue; }
+            id(assist_set_media_mute).execute(q.entity, false);
+            char *end = nullptr;
+            const float level = q.volume.empty() ? NAN : std::strtof(q.volume.c_str(), &end);
+            if (std::isfinite(level) && end != q.volume.c_str() && level >= 0.0f && level <= 1.0f)
+              id(assist_set_media_volume).execute(q.entity, q.volume);
+          }
 
   - id: assist_unmute_media_deferred
     mode: restart

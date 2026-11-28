@@ -82,8 +82,14 @@ inline IdleMediaDecision decide_idle_media(IdlePopup &popup, const IdleMediaInpu
   popup.visible = true;
   return {IdleMediaAction::OPEN_POPUP, in.candidate};
 }
-// Registered playing media players muted by Assist (unmuted when Assist ends).
-inline std::vector<std::string> assist_muted;
+// Registered playing media players Assist quieted: paused when the player
+// supports it, otherwise muted with its volume kept to restore afterwards.
+struct AssistQuieted {
+  std::string entity;
+  bool paused{false};
+  std::string volume;  // volume_level before muting ("" when unknown)
+};
+inline std::vector<AssistQuieted> assist_muted;
 // Artwork owner on the visible rectangular main page.
 inline std::string main_entity;
 inline std::function<void()> detach_main_artwork;

@@ -558,35 +558,40 @@ interval:
           static uint32_t last_page_sync = 0;
           if (millis() - last_page_sync >= 1000) {
             last_page_sync = millis();
-            static std::vector<std::string> page_options;
+            // Option changes make Home Assistant reconnect (it reads a select's
+            // options on connect), dropping any action in flight. Publish new
+            // options only once they have been stable for 10 s and never while
+            // Assist is active; the first set is published at once.
+            static std::vector<std::string> page_options, entity_options, pending_pages, pending_entities;
+            static uint32_t pending_since = 0;
+            static bool first = true;
             auto titles = onx_panel_pages::page_titles();
             if (titles.empty()) titles.push_back("None");
+            std::vector<std::string> names;
+            for (auto &t : onx_panel_pages::entity_titles()) names.push_back(std::move(t.first));
+            if (names.empty()) names.push_back("None");
             auto *select = id(panel_page_select);
-            bool options_changed = false;
-            if (titles != page_options) {
+            if (titles != pending_pages || names != pending_entities) {
+              pending_pages = titles;
+              pending_entities = names;
+              pending_since = millis();
+            }
+            const bool differs = titles != page_options || names != entity_options;
+            const bool settled = millis() - pending_since >= 10000 && !onx_assist::running() && !onx_assist::overlay_visible();
+            if (differs && (first || settled)) {
               page_options = std::move(titles);
+              entity_options = std::move(names);
               esphome::FixedVector<const char *> options;
               options.init(page_options.size());
               for (const auto &t : page_options) options.push_back(t.c_str());
               select->traits.set_options(options);
-              options_changed = true;
+              esphome::FixedVector<const char *> entity_list;
+              entity_list.init(entity_options.size());
+              for (const auto &t : entity_options) entity_list.push_back(t.c_str());
+              id(panel_entity_select)->traits.set_options(entity_list);
+              if (!first) custom_logic::disconnect_all_clients_for_refresh(id(api_server));
+              first = false;
             }
-            static std::vector<std::string> entity_options;
-            std::vector<std::string> names;
-            for (auto &t : onx_panel_pages::entity_titles()) names.push_back(std::move(t.first));
-            if (names.empty()) names.push_back("None");
-            if (names != entity_options) {
-              entity_options = std::move(names);
-              esphome::FixedVector<const char *> options;
-              options.init(entity_options.size());
-              for (const auto &t : entity_options) options.push_back(t.c_str());
-              id(panel_entity_select)->traits.set_options(options);
-              options_changed = true;
-            }
-            // Home Assistant reads a select's options when it connects.
-            static bool first = true;
-            if (options_changed && !first) custom_logic::disconnect_all_clients_for_refresh(id(api_server));
-            if (options_changed) first = false;
             const int config = onx_panel_pages::configured(
                 id(ui_presenter)->get_normal_device_entity_id(id(normal_device_selected_index)));
             const int page = onx_panel_pages::page_of_entry(config);

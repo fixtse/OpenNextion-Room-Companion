@@ -1,4 +1,5 @@
 #pragma once
+#include <map>
 #include "onx_panel_layout.h"
 #include <functional>
 #include <cstdio>
@@ -763,12 +764,23 @@ inline void suspend_underlay() {
 }
 // Home Assistant "Page" select: one unique title per stored page (its name,
 // or its first entity's title), and the page that shows a given entry.
+// An entity's name for the Page / Show entity selects. The registry cache can
+// briefly come back empty; keep the last name seen so the options stay stable
+// (every change of options makes Home Assistant reconnect).
+inline std::string stable_title(const std::string &entity) {
+  static std::map<std::string,std::string> known;
+  if(entity.empty())return "";
+  auto title=custom_logic::ha_entity_title_from_registry_cache(entity);
+  if(!title.empty()){known[entity]=title;return title;}
+  const auto it=known.find(entity);
+  return it!=known.end()?it->second:entity;
+}
 inline std::vector<std::string> page_titles() {
   std::vector<std::string> out;
   for(int p=0;p<stored.count && p<int(MAX_PAGES);++p) {
     const auto &page=stored.pages[p];
     std::string title=page.name;
-    if(title.empty()){const auto e=entry_entity(lead(page));title=custom_logic::ha_entity_title_from_registry_cache(e);if(title.empty())title=e;}
+    if(title.empty())title=stable_title(entry_entity(lead(page)));
     if(title.empty())title="Page "+std::to_string(p+1);
     if(title.size()>60)title.resize(60);
     std::string unique=title;
@@ -784,7 +796,7 @@ inline std::vector<std::pair<std::string,int>> entity_titles() {
   const size_t limit=custom_logic::active_slot_limit();
   for(size_t i=0;i<limit;++i) {
     const auto e=custom_logic::cached_device_entity_id(i);if(e.empty())continue;
-    std::string title=custom_logic::ha_entity_title_from_registry_cache(e);if(title.empty())title=e;
+    std::string title=stable_title(e);
     if(title.size()>60)title.resize(60);
     std::string unique=title;
     for(int n=2;std::find_if(out.begin(),out.end(),[&](const auto &o){return o.first==unique;})!=out.end();++n)unique=title+" ("+std::to_string(n)+")";

@@ -20,7 +20,7 @@ substitutions:
   display_update_interval: 16ms
   lcd_spi_data_rate: 40MHz
   lcd_backlight_default: 100%
-  product_firmware_version: "2026.11.1.38"
+  product_firmware_version: "2026.11.1.40"
   product_firmware_manifest_url: "https://raw.githubusercontent.com/fixtse/esp-ota/main/ota/releases/onx3248g035${firmware_variant}_manifest.yml"
   # Optional first-boot defaults for the dashboard stream (editable on Visit).
   default_dashboard_server: ""

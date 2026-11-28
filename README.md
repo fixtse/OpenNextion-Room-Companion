@@ -155,7 +155,7 @@ the [fixtSE ImmichFrame fork](https://github.com/fixtse/ImmichFrame):
   speaker, tap **Talk**, press the board’s **BOOT** button, trigger the Home
   Assistant **Talk** entity, or use a wake word to speak a request, view live
   transcript and reply bubbles, and hear the response. Includes an optional
-  setting to **auto-mute playing media players** while Assist listens, a
+  setting to **pause (or mute) playing media players** while Assist listens, a
   software **Microphone muted** switch, and an exposed **Speaker** media player
   entity.
 - **Local wake word & voice timer controls.** The wake-word firmware variants
